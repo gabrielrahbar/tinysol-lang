@@ -31,12 +31,12 @@ let rec string_of_expr = function
   | Ge(e1,e2) -> string_of_expr e1 ^ ">" ^ string_of_expr e2                    
 
 and string_of_cmd = function
-    Skip -> "skip"
-  | Assign(x,e) -> x ^ "=" ^ string_of_expr e
-  | Seq(c1,c2) -> string_of_cmd c1 ^ "; " ^ string_of_cmd c2
-  | If(e,c1,c2) -> "if " ^ string_of_expr e ^ " {" ^ string_of_cmd c1 ^ "} else {" ^ string_of_cmd c2 ^ "}"
-  | Send(x,e,t) -> x ^ "!" ^ (string_of_expr e) ^ ":" ^ t
-  | Req(e) -> "require " ^ string_of_expr e
+    Skip -> "skip;"
+  | Assign(x,e) -> x ^ "=" ^ string_of_expr e ^ ";"
+  | Seq(c1,c2) -> string_of_cmd c1 ^ " " ^ string_of_cmd c2
+  | If(e,c1,c2) -> "if (" ^ string_of_expr e ^ ") {" ^ string_of_cmd c1 ^ "} else {" ^ string_of_cmd c2 ^ "}"
+  | Send(x,e,t) -> x ^ "!" ^ (string_of_expr e) ^ ":" ^ t ^ ";"
+  | Req(e) -> "require " ^ string_of_expr e ^ ";"
   | Call(f,e) -> f ^ "(" ^ string_of_expr e ^ ")"
   | CallExec(c) -> "exec{" ^ string_of_cmd c ^ "}"
   | Block(vdl,c) -> "{" 
@@ -52,17 +52,17 @@ and string_of_var_decl = function
   | AddrVar(x) -> "address " ^ x
 
 and string_of_fun_decl = function
-  | Constr(f,a,c) -> "constructor " ^ f ^ "(" ^ (string_of_args a) ^ ") {" ^ string_of_cmd c ^ "}"                 
-  | Proc(f,a,c) -> "fun " ^ f ^ "(" ^ (string_of_args a) ^ ") {" ^ string_of_cmd c ^ "}"
+  | Constr(f,a,c) -> "constructor " ^ f ^ "(" ^ (string_of_args a) ^ ") {" ^ string_of_cmd c ^ "}\n"                 
+  | Proc(f,a,c) -> "function " ^ f ^ "(" ^ (string_of_args a) ^ ") {" ^ string_of_cmd c ^ "}\n"
 
-let string_of_var_decls = List.fold_left (fun s d -> s ^ (if s<>"" then "; " else "") ^ string_of_var_decl d) ""
+let string_of_var_decls = List.fold_left (fun s d -> s ^ (if s<>"" then ";\n  " else "  ") ^ string_of_var_decl d) ""
 
-let string_of_fun_decls = List.fold_left (fun s d -> s ^ (if s<>"" then "; " else "") ^ string_of_fun_decl d) ""
+let string_of_fun_decls = List.fold_left (fun s d -> s ^ (if s<>"" then "  " else " ") ^ string_of_fun_decl d) ""
 
 let string_of_contract (Contract(c,vdl,fdl)) = 
   "contract " ^ c ^ 
-  " { " ^ 
-  (let s = string_of_var_decls vdl in if s="" then "" else s ^ "; ") ^ 
+  " {\n" ^ 
+  (let s = string_of_var_decls vdl in if s="" then "" else s ^ ";\n ") ^ 
   (string_of_fun_decls fdl) ^ 
   " }"
 
