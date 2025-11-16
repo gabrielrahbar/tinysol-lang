@@ -1,12 +1,5 @@
 open Ast
 
-(* exprval: values associated to (contract and local) variables *)
-
-type exprval = Bool of bool | Int of int | Addr of string
-
-(* TODO: not used yet *)
-type envval  = IVar of exprval | IProc of args * cmd
-
 (* local environment: 
     maps local variables, plus sender and value
     this is a transient storage, not preserved between calls
@@ -31,6 +24,9 @@ type exec_state =
   | St of sysstate 
   | Cmd of cmd * sysstate * addr
 
+let sysstate_of_exec_sysstate = function
+  St st -> st
+| _ -> failwith "systate_of_exec_sysstate"
 
 let rec last_sysstate = function
     [] -> failwith "last on empty list"
@@ -44,13 +40,13 @@ let topenv (st: sysstate) : env = match st.stackenv with
   [] -> failwith "empty stack"
 | e::_ -> e
 
-let popenv (st: sysstate) : env list = match st.stackenv with
+let popenv (st: sysstate) : sysstate = match st.stackenv with
     [] -> failwith "empty stack"
-  | _::el -> el
+  | _::el -> { st with stackenv = el } 
 
 let botenv = fun x -> failwith ("variable " ^ x ^ " unbound")
     
-let bind f x v = fun y -> if y=x then v else f y
+let bind x v f = fun y -> if y=x then v else f y
 
 (* lookup for variable x in state st (tries first in storage of address a) *)
     
@@ -79,8 +75,8 @@ let mem_env (r:env) (x:ide) : bool =
 let update_storage (st : sysstate) (a:addr) (x:ide) (v:exprval) : sysstate = 
   let cs = st.accounts a in
     if mem_contract_state cs x then 
-      let cs' = { cs with storage = bind cs.storage x v } in 
-      { st with accounts = bind st.accounts a cs' }
+      let cs' = { cs with storage = bind x v cs.storage } in 
+      { st with accounts = bind a cs' st.accounts }
     else failwith (x ^ " not bound in storage of " ^ a)   
 
 let update_env (st : sysstate) (x:ide) (v:exprval) : sysstate =
@@ -88,7 +84,7 @@ let update_env (st : sysstate) (x:ide) (v:exprval) : sysstate =
   | [] -> failwith "Empty stack"
   | e::el' -> 
     if mem_env e x then 
-      let e' = bind e x v in 
+      let e' = bind x v e in 
       { st with stackenv = e'::el' }
     else failwith (x ^ " not bound in env")   
 

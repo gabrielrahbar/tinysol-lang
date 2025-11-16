@@ -42,6 +42,7 @@ open Ast
 %token ADDR
 %token RECEIVESEP
 %token FIELDSEP
+%token MSGSENDER
 %token TRANSFER
 %token TOKSEP
 %token ARGSEP
@@ -60,11 +61,12 @@ open Ast
 
 %start <contract> contract
 %start <transaction> transaction
+%type <exprval> value
 %type <var_decl> var_decl
 %type <modifier> modifier
 %type <fun_decl> fun_decl
 %type <cmd> cmd
-%type <args> args
+%type <var_decls> args
 %type <expr> expr 
 
 %start <cmd> cmd_test
@@ -76,12 +78,22 @@ contract:
 ;
 
 transaction:
-  | sender = ADDRLIT; TOKSEP; contr = ADDRLIT; FIELDSEP; f = ID; LPAREN; a = args; RPAREN { Tx(sender,contr,f,a) } 
+  | sender = ADDRLIT; TOKSEP; contr = ADDRLIT; FIELDSEP; f = ID; LPAREN; a = actual_args; RPAREN { Tx(sender,contr,f,a) } 
 ;
+
+actual_args:
+  | a = separated_list(ARGSEP, value) { a } ;
+
+value:
+  | n = CONST { Int (int_of_string n) }
+  | s = STRING { Addr s }
+  | TRUE { Bool true }
+  | FALSE { Bool false }
 
 expr:
   | n = CONST { IntConst(int_of_string n) }
   | s = STRING { AddrConst(s) }
+  | MSGSENDER { Var("msg.sender") }
   | TRUE { True }
   | FALSE { False }
   | NOT; e=expr { Not e }
@@ -104,7 +116,7 @@ nonseq_cmd:
   | SKIP; CMDSEP;  { Skip }
   | REQ; e = expr; CMDSEP; { Req(e) } 
   | x = ID; TAKES; e = expr; CMDSEP; { Assign(x,e) }
-  | x = ID; FIELDSEP; TRANSFER; LPAREN; e=expr; TOKSEP; t = ID; RPAREN; CMDSEP; { Send(x,e,t) }
+  | rcv=expr; FIELDSEP; TRANSFER; LPAREN; amt=expr; RPAREN; CMDSEP; { Send(rcv,amt) }
   | f = ID; LPAREN; e=expr; RPAREN; CMDSEP; { Call(f,e) }
 
 cmd:
@@ -143,6 +155,7 @@ args:
   | a = separated_list(ARGSEP, arg) { a } ;
 
 arg:
-  | x = ID { IntArg(x) }
-  | RECEIVESEP; x = ID; TOKSEP; t = ID; { RcvArg(x,t) }
+  | INT; x = ID { IntVar x }
+  | BOOL; x = ID { BoolVar x }
+  | ADDR; x = ID { AddrVar x }
 ;

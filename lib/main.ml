@@ -16,6 +16,21 @@ let is_val = function
   | AddrConst _ -> true
   | _ -> false
 
+let int_of_exprval v = match v with 
+  | Int n -> n
+  | Bool _ -> failwith "value has type Bool but an Int was expected"
+  | Addr _ -> failwith "value has type Addr but an Int was expected"
+
+let bool_of_exprval v = match v with 
+  | Bool b -> b
+  | Int _ -> failwith "value has type Int but an Bool was expected"
+  | Addr _ -> failwith "value has type Addr but an Bool was expected"
+
+let addr_of_exprval v = match v with 
+  | Addr a -> a
+  | Bool _ -> failwith "value has type Bool but an Addr was expected"
+  | Int _ -> failwith "value has type Int but an Addr was expected"
+
 let rec eval_expr (st : sysstate) (a : addr) = function
     True -> Bool true
   | False -> Bool false
@@ -75,9 +90,9 @@ let eval_var_decls (vdl : var_decl list) (e : env): env =
   List.fold_left
     (fun acc vd ->
       match vd with
-        | IntVar x  -> bind acc x (Int 0)
-        | BoolVar x -> bind acc x (Bool false)
-        | AddrVar x -> bind acc x (Addr "0")
+        | IntVar x  -> acc |> bind x (Int 0)
+        | BoolVar x -> acc |> bind x (Bool false)
+        | AddrVar x -> acc |> bind x (Addr "0")
     )
     e
     vdl
@@ -105,14 +120,25 @@ let rec trace1_cmd = function
         | Bool false -> Cmd(c2,st,a)
         | _ -> failwith("if: type error"))
     | Req(_) -> failwith ("TODO")
-    | Send(_,_,_) -> failwith ("TODO")
+    | Send(ercv,eamt) -> 
+        let rcv = addr_of_exprval (eval_expr st a ercv) in 
+        let amt = int_of_exprval (eval_expr st a eamt) in
+        let bal = (st.accounts a).balance in
+        if bal<amt then failwith "insufficient balance" else
+        let sender_state =  { (st.accounts a) with balance = (st.accounts a).balance - amt } in
+        if exists_account st rcv then
+          let rcv_state = { (st.accounts rcv) with balance = (st.accounts rcv).balance + amt } in
+           St { st with accounts = st.accounts |> bind rcv rcv_state |> bind a sender_state}
+        else
+          let rcv_state = { balance = amt; storage = botenv; code = None; } in
+          St { st with accounts = st.accounts |> bind rcv rcv_state |> bind a sender_state; active = rcv::st.active }
     | Call(_,_) -> failwith "TODO"
     | Block(vdl,c) ->
       let e = topenv st in
       let e' = eval_var_decls vdl e in
       Cmd(ExecBlock c, { st with stackenv = e'::st.stackenv} , a)
     | ExecBlock(c) -> (match trace1_cmd (Cmd(c,st,a)) with
-        | St st -> St { st with stackenv = popenv st }
+        | St st -> St (popenv st)
         | Cmd(c1',st1,a') -> Cmd(ExecBlock(c1'),st1,a'))
     | _ -> failwith "TODO")
 
@@ -138,21 +164,14 @@ let sem_decl (e,l) = function
   | Proc(f,a,c) -> let e' = bind e f (IProc(a,c)) in (e',l)
 *)
 
-let rec trace_rec_cmd n t =
-  if n<=0 then [t]
-  else try
-      let t' = trace1_cmd t
-      in t::(trace_rec_cmd (n-1) t')
-    with NoRuleApplies -> [t]
-
-  
+ 
 let init_storage (Contract(_,vdl,_)) : ide -> exprval =
   List.fold_left (fun acc var -> 
       let (x,v) = (match var with 
         | IntVar x  -> (x, Int 0)
         | BoolVar x -> (x, Bool false)
         | AddrVar x -> (x, Addr "0"))
-      in bind acc x v) botenv vdl 
+      in bind x v acc) botenv vdl 
 
 let init_sysstate = { 
     accounts = (fun a -> failwith ("account " ^ a ^ " unbound")); 
@@ -160,8 +179,23 @@ let init_sysstate = {
     active = []; 
 }
 
-let trace_cmd n_steps (c:cmd) (a:addr) (st : sysstate)=
-  trace_rec_cmd n_steps (Cmd(c,st,a))
+let exec_cmd (n_steps : int) (c : cmd) (a : addr) (st : sysstate) : exec_state =
+  let rec exec_rec_cmd n s =
+    if n<=0 then s
+    else try
+        let s' = trace1_cmd s
+        in exec_rec_cmd (n-1) s'
+      with NoRuleApplies -> s
+    in exec_rec_cmd n_steps (Cmd (c,st,a))
+
+let trace_cmd n_steps (c:cmd) (a:addr) (st : sysstate) : exec_state list =
+  let rec trace_rec_cmd n t =
+    if n<=0 then [t]
+    else try
+        let t' = trace1_cmd t
+        in t::(trace_rec_cmd (n-1) t')
+      with NoRuleApplies -> [t]
+  in trace_rec_cmd n_steps (Cmd(c,st,a))
 
 
 (******************************************************************************)
@@ -171,10 +205,10 @@ let trace_cmd n_steps (c:cmd) (a:addr) (st : sysstate)=
 let faucet (a : addr) (n : int) (st : sysstate) : sysstate = 
   if exists_account st a then 
     let as' = { (st.accounts a) with balance = n + (st.accounts a).balance } in
-    { st with accounts = bind st.accounts a as' }
+    { st with accounts = bind a as' st.accounts }
   else
     let as' = { balance = n; storage = botenv; code = None; } in
-    { st with accounts = bind st.accounts a as'; active = a::st.active }
+    { st with accounts = bind a as' st.accounts; active = a::st.active }
 
 
 (******************************************************************************)
@@ -183,10 +217,10 @@ let faucet (a : addr) (n : int) (st : sysstate) : sysstate =
 
 (* TODO: we should execute constructor!! *)
 
-let deploy_contract (st : sysstate) (a : addr) (c : contract) : sysstate =
+let deploy_contract (a : addr) (c : contract) (st : sysstate) : sysstate =
   if exists_account st a then failwith ("deploy_contract: address " ^ a ^ " already bound in sysstate")
   else
-    let as' = bind st.accounts a ({ balance=0; storage = init_storage c; code = Some c }) in
+    let as' = st.accounts |> bind a { balance=0; storage = init_storage c; code = Some c } in
   { st with accounts = as'; active = a::st.active }
 
 
@@ -200,19 +234,37 @@ let find_fun (Contract(_,_,fdl)) (f : ide) : fun_decl option =
   None
   fdl
 
-let exec_tx (n_steps : int) (Tx(a,b,f,_)) (st : sysstate) =
+let bind_fargs_aargs (xl : var_decl list) (vl : exprval list) : env =
+   List.fold_left2 
+   (fun acc x_decl v -> match (x_decl,v) with 
+    | (IntVar x, Int _) 
+    | (BoolVar x, Bool _) 
+    | (AddrVar x, Addr _) -> bind x v acc
+    | _ -> failwith "bind_fargs_aargs") 
+   botenv 
+   xl 
+   vl
+
+let exec_tx (n_steps : int) (Tx(a,b,f,vl)) (st : sysstate) : sysstate =
   if not (exists_account st a) then failwith ("sender address " ^ a ^ " does not exist") else
   if not (exists_account st b) then failwith ("to address " ^ b ^ " does not exist") else
   let b_state = st.accounts b in match b_state.code with
   | None -> failwith "Call not to a contract"
   | Some src -> (match find_fun src f with
       | None -> failwith ("Contract at address " ^ b ^ " has no function named " ^ f)
-      | Some (Proc(_,_,c,_)) ->  
-          trace_cmd n_steps c b st)
+      | Some (Proc(_,xl,c,_)) ->
+          let xl' =  AddrVar "msg.sender" :: xl in
+          let vl' = Addr a :: vl in
+          let e' = bind_fargs_aargs xl' vl' in
+          let se' = e' :: st.stackenv in
+          let st' = { st with stackenv = se' } in
+          exec_cmd n_steps c b st'
+          |> sysstate_of_exec_sysstate
+          |> popenv)
 
 
 let exec_tx_list (n_steps : int) (txl : transaction list) (st : sysstate) = 
   List.fold_left 
-  (fun sti tx -> exec_tx n_steps tx sti |> last_sysstate)
+  (fun sti tx -> exec_tx n_steps tx sti)
   st
   txl

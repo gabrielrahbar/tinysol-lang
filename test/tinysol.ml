@@ -100,7 +100,7 @@ let test_exec_tx (c: string) (txl: string list) (vars : ide list) (exp_vals : ex
   let txl = List.map parse_transaction txl in
   c
   |> parse_contract
-  |> deploy_contract init_sysstate "0xC1"
+  |> fun c -> deploy_contract "0xC1" c init_sysstate
   |> faucet "0xA" 100
   |> exec_tx_list 1000 txl 
   |> fun st -> List.map (fun x -> lookup "0xC1" x st) vars 

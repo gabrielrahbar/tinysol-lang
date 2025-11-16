@@ -7,6 +7,13 @@ type tok = string
 (* address identifier *)
 type addr = string
 
+(* exprval: values associated to (contract and local) variables *)
+
+type exprval = 
+  | Bool of bool 
+  | Int of int 
+  | Addr of string
+
 (* expressions *)
 
 type expr =
@@ -34,19 +41,13 @@ and cmd =
   | Skip
   | Assign of ide * expr
   | Seq of cmd * cmd
-  | Send of ide * expr * tok (* send(e1,e2,t) transfers e2:t to e1 *)
+  | Send of expr * expr       (* send(e1,e2) transfers e2 wei to e1 *)
   | If of expr * cmd * cmd
   | Req of expr               (* require(e) reverts if e is false *) 
   | Call of ide * expr        (* TODO: add actual parameters *)
   | CallExec of cmd           (* Runtime only: c is the cmd being reduced *)
   | Block of var_decls * cmd
   | ExecBlock of cmd          (* Runtime only: c is the cmd being reduced *)
-
-and arg =
-  | IntArg of ide
-  | RcvArg of ide * tok
-
-and args = arg list
 
 and var_decl =
   | IntVar of ide 
@@ -58,7 +59,7 @@ and modifier =
   | Private
 
 and fun_decl =
-  | Proc of ide * args * cmd * modifier
+  | Proc of ide * var_decls * cmd * modifier
 
 and var_decls = var_decl list
 
@@ -67,4 +68,4 @@ and fun_decls = fun_decl list
 type contract = Contract of ide * var_decls * fun_decls
 
 (* tx = sender:contract.function(args) *)
-type transaction = Tx of addr * addr * ide * args
+type transaction = Tx of addr * addr * ide * (exprval list)

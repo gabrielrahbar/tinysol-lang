@@ -53,7 +53,7 @@ and vars_of_cmd = function
   | Assign(x,e) -> union [x] (vars_of_expr e)
   | Seq(c1,c2) -> union (vars_of_cmd c1) (vars_of_cmd c2)
   | If(e,c1,c2) -> union (vars_of_expr e) (union (vars_of_cmd c1) (vars_of_cmd c2))
-  | Send(x,e,y) -> union [x] (union [y] (vars_of_expr e))
+  | Send(e1,e2) -> union (vars_of_expr e1) (vars_of_expr e2)
   | Req(e) -> vars_of_expr e                    
   | Call(f,e) -> union [f] (vars_of_expr e)
   | CallExec(c) -> vars_of_cmd c
@@ -74,15 +74,11 @@ let string_of_exprval = function
   | Int n  -> string_of_int n
   | Addr s -> s
 
-let string_of_arg = function
-  | IntArg(x) -> x
-  | RcvArg(x,t) -> x ^ "?" ^ t
-
 let string_of_modifier = function
   | Public -> "public"
   | Private -> "private"
 
-let string_of_args = List.fold_left (fun s a -> s ^ (if s<>"" then "," else "") ^ (string_of_arg a)) ""
+let string_of_args = List.fold_left (fun s a -> s ^ (if s<>"" then "," else "") ^ (string_of_exprval a)) ""
 
 let rec string_of_expr = function
     True -> "true"
@@ -108,7 +104,7 @@ and string_of_cmd = function
   | Assign(x,e) -> x ^ "=" ^ string_of_expr e ^ ";"
   | Seq(c1,c2) -> string_of_cmd c1 ^ " " ^ string_of_cmd c2
   | If(e,c1,c2) -> "if (" ^ string_of_expr e ^ ") {" ^ string_of_cmd c1 ^ "} else {" ^ string_of_cmd c2 ^ "}"
-  | Send(x,e,t) -> x ^ ".transfer(" ^ (string_of_expr e) ^ ":" ^ t ^ ");"
+  | Send(e1,e2) -> string_of_expr e1 ^ ".transfer(" ^ (string_of_expr e2) ^ ");"
   | Req(e) -> "require " ^ string_of_expr e ^ ";"
   | Call(f,e) -> f ^ "(" ^ string_of_expr e ^ ")"
   | CallExec(c) -> "exec{" ^ string_of_cmd c ^ "}"
@@ -119,20 +115,21 @@ and string_of_cmd = function
   | ExecBlock(c) -> "{" 
     ^ string_of_cmd c 
     ^ "}"
+
 and string_of_var_decl = function
   | IntVar(x) -> "int " ^ x
   | BoolVar(x) -> "bool " ^ x
   | AddrVar(x) -> "address " ^ x
 
-and string_of_fun_decl = function Proc(f,a,c,m) -> 
+let string_of_var_decls = List.fold_left (fun s d -> s ^ (if s<>"" then ";\n  " else "  ") ^ string_of_var_decl d) ""
+
+let string_of_fun_decl = function Proc(f,a,c,m) -> 
     if f="constructor" then
-      "constructor " ^ f ^ "(" ^ (string_of_args a) ^ ") {" ^ string_of_cmd c ^ "}\n"
+      "constructor " ^ f ^ "(" ^ (string_of_var_decls a) ^ ") {" ^ string_of_cmd c ^ "}\n"
     else
-    "function " ^ f ^ "(" ^ (string_of_args a) ^ ") " ^
+    "function " ^ f ^ "(" ^ (string_of_var_decls a) ^ ") " ^
     string_of_modifier m ^ " " ^ 
     "{" ^ string_of_cmd c ^ "}\n"
-
-let string_of_var_decls = List.fold_left (fun s d -> s ^ (if s<>"" then ";\n  " else "  ") ^ string_of_var_decl d) ""
 
 let string_of_fun_decls = List.fold_left (fun s d -> s ^ (if s<>"" then "  " else " ") ^ string_of_fun_decl d) ""
 
@@ -142,12 +139,6 @@ let string_of_contract (Contract(c,vdl,fdl)) =
   (let s = string_of_var_decls vdl in if s="" then "" else s ^ ";\n ") ^ 
   (string_of_fun_decls fdl) ^ 
   " }"
-
-(*
-let string_of_env1 s x = match topenv s x with
-  | IVar v -> string_of_exprval v ^ "/" ^ x
-  | IProc(a,c) -> "fun(" ^ string_of_args a ^ "){" ^ string_of_cmd c ^ "}/" ^ x
-*)
 
 let string_of_env e vl = 
   let rec helper e vl = match vl with 
@@ -188,7 +179,7 @@ let string_of_accounts (st : sysstate) =
 
 (* TODO: add storage variables *)
 
-let string_of_sysstate (st : sysstate) (evl : ide list) =
+let string_of_sysstate (evl : ide list) (st : sysstate) =
   "accounts: " ^ 
   string_of_accounts st ^ 
   "\n" ^
@@ -196,10 +187,10 @@ let string_of_sysstate (st : sysstate) (evl : ide list) =
   string_of_envstack st.stackenv evl
 
 let string_of_execstate evl = function
-  | St st -> string_of_sysstate st evl
+  | St st -> string_of_sysstate evl st
   | Cmd (c,st,a) -> 
       "cmd: " ^ (string_of_cmd c) ^ "\n" ^ 
-      (string_of_sysstate st evl) ^ "," ^ a 
+      (string_of_sysstate evl st) ^ "," ^ a 
 
 let string_of_trace stl = match stl with
   [] -> ""
@@ -219,6 +210,9 @@ let rec last = function
     [] -> failwith "last on empty list"
   | [st] -> st
   | _::l -> last l
+
+let print_sysstate_id (st : sysstate) : sysstate =
+  st |> string_of_sysstate [] |> print_string |> fun _ -> st
 
 let print_trace_and_return_last_sysstate tr = 
   let st = last_sysstate tr in

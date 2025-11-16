@@ -33,14 +33,19 @@ match Array.length(Sys.argv) with
 | 3 when Sys.argv.(1)="exec_tx" -> (match read_file Sys.argv.(2) with
       "" -> print_newline()
     | src -> src |> parse_contract
-      |> deploy_contract init_sysstate "0xAA" 
+      |> fun c -> deploy_contract "0xAA" c init_sysstate 
       |> faucet "0x0" 100
-      |> exec_tx 1000 (Tx("0x0","0xAA","g", []))
-      |> print_trace_and_return_last_sysstate
-      |> exec_tx 1000 (Tx("0x0","0xAA","g", []))
-      |> print_trace_and_return_last_sysstate
-      |> exec_tx 1000 (Tx("0x0","0xAA","g", []))
-      |> print_trace_and_return_last_sysstate 
+      |> faucet "0xAA" 10
+      |> exec_tx 1000 (Tx("0x0","0xAA","f1", []))
+      |> print_sysstate_id
+      |> exec_tx 1000 (Tx("0x0","0xAA","f1", []))
+      |> print_sysstate_id
+      |> exec_tx 1000 (Tx("0x0","0xAA","f1", []))
+      |> print_sysstate_id 
+      |> exec_tx 1000 (Tx("0x0","0xAA","f2", [Addr "0x0"]))
+      |> print_sysstate_id 
+      |> exec_tx 1000 (Tx("0x0","0xAA","f3", []))
+      |> print_sysstate_id 
       |> fun _ -> ())
 (* wrong usage *)      
 | _ -> print_string "Usage:
