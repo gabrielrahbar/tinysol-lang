@@ -76,4 +76,5 @@ type transaction = Tx of addr * addr * ide * (exprval list)
 type cli_cmd = 
   | Faucet of addr * int
   | Deploy of addr * string
-  | ExecTx of transaction  
+  | ExecTx of transaction
+  | Assert of addr * ide * exprval

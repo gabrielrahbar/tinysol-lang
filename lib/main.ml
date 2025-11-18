@@ -36,11 +36,10 @@ let rec eval_expr (st : sysstate) (a : addr) = function
   | IntConst n -> Int n
   | AddrConst s -> Addr s
   | This -> Addr a
-  | Var x -> lookup a x st
+  | Var x -> lookup_var a x st
   | BalanceOf e ->
-    let b = addr_of_exprval (eval_expr st a e) in (
-      try (Int (st.accounts b).balance)
-      with _ -> Int 0)
+    let b = addr_of_exprval (eval_expr st a e) in
+    Int (lookup_balance b st)
   | Not(e) -> (match eval_expr st a e with
         Bool b -> Bool(not b)
       | _ -> raise (TypeError "Not")

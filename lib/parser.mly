@@ -52,6 +52,7 @@ open Ast
 
 %token FAUCET
 %token DEPLOY
+%token ASSERT
 
 %left OR
 %left AND
@@ -172,4 +173,6 @@ cli_cmd:
   | tx = transaction { ExecTx tx }
   | FAUCET; a = ADDRLIT; n = CONST { Faucet(a, int_of_string n) }
   | DEPLOY; a = ADDRLIT; filename = STRING { Deploy(a,filename) }
+  | ASSERT; a = ADDRLIT; x = ID;  ev = value { Assert(a,x,ev) }
+  | ASSERT; a = ADDRLIT; BALANCE; ev = CONST { Assert(a,"balance",Int (int_of_string ev)) }
 ;

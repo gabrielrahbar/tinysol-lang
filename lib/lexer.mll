@@ -61,6 +61,7 @@ rule read_token =
   | "private" { PRIVATE }
   | "faucet" { FAUCET }
   | "deploy" { DEPLOY }
+  | "assert" { ASSERT }
   | id { ID (Lexing.lexeme lexbuf) }
   | addrlit { ADDRLIT (Lexing.lexeme lexbuf) }
   | num { CONST (Lexing.lexeme lexbuf) }

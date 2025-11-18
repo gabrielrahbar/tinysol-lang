@@ -2,7 +2,6 @@ open TinysolLib.Ast
 open TinysolLib.Types       
 open TinysolLib.Utils
 open TinysolLib.Main
-open TinysolLib.Cli
 
 
 (********************************************************************************
@@ -51,8 +50,8 @@ let test_trace_cmd (c,n_steps,var,exp_val) =
   |> parse_cmd
   |> fun c -> last (trace_cmd n_steps c "0xCAFE" init_sysstate)
   |> fun t -> match t with
-  | St st -> lookup "0xCAFE" var st = exp_val
-  | Cmd(_,st,_) -> lookup "0xCAFE" var st = exp_val
+  | St st -> lookup_var "0xCAFE" var st = exp_val
+  | Cmd(_,st,_) -> lookup_var "0xCAFE" var st = exp_val
 
 let%test "test_trace_cmd_1" = test_trace_cmd
   ("{ int x; x=51; skip; }", 2, "x", Int 51)  
@@ -108,19 +107,7 @@ let test_exec_tx (c: string) (txl: string list) (vars : ide list) (exp_vals : ex
   |> fun c -> deploy_contract "0xC1" c init_sysstate
   |> faucet "0xA" 100
   |> exec_tx_list 1000 txl 
-  |> fun st -> List.map (fun x -> lookup "0xC1" x st) vars 
-  |> fun vl -> vl = exp_vals
-
-let fix_path (cc : cli_cmd) : cli_cmd = match cc with
-  | Deploy(a,f) -> Deploy(a, "../../../../../" ^ f)
-  | cc -> cc
-
-let test_exec_cli (cc: string list) (vars : ide list) (exp_vals : exprval list) =
-  cc
-  |> List.map parse_cli_cmd
-  |> List.map fix_path 
-  |> fun l -> exec_cli_cmd_list false l init_sysstate 
-  |> fun st -> List.map (fun x -> lookup "0xC1" x st) vars 
+  |> fun st -> List.map (fun x -> lookup_var "0xC1" x st) vars 
   |> fun vl -> vl = exp_vals
 
 let c1 = "contract C1 {
@@ -150,24 +137,3 @@ let%test "test_exec_tx_3" = test_exec_tx
   ["0xA:0xC1.g()"; "0xA:0xC1.g()"; "0xA:0xC1.g()"] 
   ["x"; "b"]
   [Int 2; Bool true]
-
-let%test "test_path" = 
-  "../../../../../test/c1.sol" |> read_file |> parse_contract |> fun _ -> true 
-
-let parse_contract_from_file (filename : string) : contract =
-  "../../../../../" ^ filename |> read_file |> parse_contract
-
-
-let%test "test_exec_cli_1" = test_exec_cli
-  [
-    "faucet 0xA 1";
-    "deploy 0xC1 \"test/c1.sol\"";
-    "faucet 0xC1 10";
-    "0xA:0xC1.f1()";
-    "0xA:0xC1.f1()";
-    "0xA:0xC1.f2(\"0x0\")";
-    "0xA:0xC1.f3(3)";
-    "0xA:0xC1.f3(3)"
-  ] 
-  ["x"; "b"]
-  [Int 1; Bool false]

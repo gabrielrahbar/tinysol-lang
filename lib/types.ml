@@ -50,7 +50,7 @@ let bind x v f = fun y -> if y=x then v else f y
 
 (* lookup for variable x in state st (tries first in storage of address a) *)
     
-let lookup (a : addr) (x : ide) (st : sysstate) : exprval =
+let lookup_var (a : addr) (x : ide) (st : sysstate) : exprval =
   try 
     (* look up for x in environment *)
     let e = topenv st in
@@ -59,6 +59,10 @@ let lookup (a : addr) (x : ide) (st : sysstate) : exprval =
     (* look up for x in storage of a *)
     let cs = st.accounts a in
     cs.storage x
+
+let lookup_balance (a : addr) (st : sysstate) : int =
+  try (st.accounts a).balance
+  with _ -> 0
 
 let exists_account (st : sysstate) (a : addr) : bool =
   try let _ = st.accounts a in true

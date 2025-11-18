@@ -20,11 +20,11 @@ match Array.length(Sys.argv) with
       "" -> print_newline()
     | s -> s |> parse_contract |> string_of_contract |> print_string)
 (* exec_tx *)
-| 3 when Sys.argv.(1)="batch_tx" ->
+| 3 when Sys.argv.(1)="unittest" ->
   Sys.argv.(2) |> read_lines |> List.map parse_cli_cmd 
     |> fun l -> exec_cli_cmd_list true l init_sysstate 
     |> string_of_sysstate [] |> print_string
-| 2 when Sys.argv.(1)="test" -> (match read_file "test/c1.sol" with
+| 2 when Sys.argv.(1)="demo" -> (match read_file "test/c1.sol" with
       "" -> print_newline()
     | src -> src |> parse_contract
       |> fun c -> deploy_contract "0xAA" c init_sysstate 
@@ -48,6 +48,6 @@ match Array.length(Sys.argv) with
   dune exec tinysol parse_cmd   : parses cmd in stdin
   dune exec tinysol exec_cmd <n_steps>   : executes n_steps of cmd in stdin
   dune exec tinysol parse_contract <file>   : parses contract in file
-  dune exec tinysol batch_tx <file> : executes CLI commands from file 
-  dune exec tinysol test : executes demo transactions in contract test/c1.sol
+  dune exec tinysol unittest <file> : executes CLI commands from file 
+  dune exec tinysol demo : executes demo transactions in contract test/c1.sol
 "
