@@ -22,7 +22,7 @@ match Array.length(Sys.argv) with
 (* exec_tx *)
 | 3 when Sys.argv.(1)="batch_tx" ->
   Sys.argv.(2) |> read_lines |> List.map parse_cli_cmd 
-    |> fun l -> exec_cli_cmd_list l init_sysstate 
+    |> fun l -> exec_cli_cmd_list true l init_sysstate 
     |> string_of_sysstate [] |> print_string
 | 2 when Sys.argv.(1)="test" -> (match read_file "test/c1.sol" with
       "" -> print_newline()

@@ -20,10 +20,12 @@ let string_of_cli_cmd = function
   | Deploy(a,filename) -> "deploy " ^ a ^ " " ^ filename
   | ExecTx tx -> string_of_transaction tx
 
-let exec_cli_cmd_list (ccl : cli_cmd list) (st : sysstate) = 
+let exec_cli_cmd_list (verbose : bool) (ccl : cli_cmd list) (st : sysstate) = 
   List.fold_left 
   (fun sti cc -> 
-    print_endline (string_of_sysstate [] sti ^ "\n--- " ^ string_of_cli_cmd cc ^ " --->"); 
+    if verbose then
+      print_endline (string_of_sysstate [] sti ^ "\n--- " ^ string_of_cli_cmd cc ^ " --->")
+    else ();  
     exec_cli_cmd cc sti)
   st
   ccl

@@ -254,7 +254,7 @@ let rec last = function
   | _::l -> last l
 
 let print_sysstate_id (st : sysstate) : sysstate =
-  st |> string_of_sysstate [] |> print_string |> fun _ -> st
+  st |> string_of_sysstate [] |> print_string |> print_newline |> fun _ -> st
 
 let print_trace_and_return_last_sysstate tr = 
   let st = last_sysstate tr in
