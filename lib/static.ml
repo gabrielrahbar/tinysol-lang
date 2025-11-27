@@ -31,6 +31,8 @@ exception UndeclaredVar of ide
 exception MultipleDecl of ide
 exception EnumNameNotFound of ide
 exception EnumOptionNotFound of ide * ide
+exception EnumDupName of ide
+exception EnumDupOption of ide * ide
 
 let exprtype_of_decltype = function
   | IntBT  -> IntET
@@ -284,7 +286,19 @@ let typecheck_fun (edl : enum_decl list) (vdl : var_decl list) = function
       typecheck_local_decls al &&
       typecheck_cmd false edl (merge_var_decls vdl al) c
 
-let typecheck_enums _ = true (* TODO *)
+let rec dup_first (l : 'a list) : 'a option = match l with 
+  | [] -> None
+  | h::tl -> if List.mem h tl then Some h else dup_first tl
+
+let typecheck_enums (edl : enum_decl list) = 
+  match dup_first (List.map (fun (Enum(x,_)) -> x) edl) with
+  | Some x -> raise (EnumDupName x)
+  | None -> List.fold_left (fun _ (Enum(x,ol)) -> 
+      match dup_first ol with 
+      | Some o -> raise (EnumDupOption (x,o))
+      | None -> true
+    )
+    true edl
 
 let typecheck_contract (Contract(_,edl,vdl,fdl)) =
   typecheck_enums edl 

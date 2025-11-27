@@ -869,3 +869,15 @@ let%test "test_typecheck_enum_2" = test_typecheck
 let%test "test_typecheck_enum_3" = test_typecheck
   "contract C { enum State {IDLE,REQ} State s; function f() public { s = Stat.REQ; } }"
   false
+
+let%test "test_typecheck_enum_4" = test_typecheck
+  "contract C { enum State {IDLE,REQ,IDLE} State s; function f() public { s = State.REQ; } }"
+  false
+
+let%test "test_typecheck_enum_5" = test_typecheck
+  "contract C { enum E1 {A1,B1} enum E2 {A2,B2} enum E3 {A1,B1} E1 s; function f() public { s = E1.A1; } }"
+  true
+
+let%test "test_typecheck_enum_6" = test_typecheck
+  "contract C { enum E1 {A1,B1} enum E2 {A2,B2} enum E1 {A1,B1} E1 s; function f() public { s = E1.A1; } }"
+  false
