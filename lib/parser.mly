@@ -126,6 +126,7 @@ expr:
   | MSGVALUE { Var("msg.value") }
   | e = expr; DOT; BALANCE { BalanceOf(e) }
   | e = expr; DOT; o = ID { match e with Var(x) -> EnumOpt(x,o) | _ -> failwith "enum parser error"}
+  | e1 = expr; LPAREN; e2 = expr; RPAREN { match e1 with Var(x) -> EnumCast(x,e2) | _ -> failwith "enum parser error"}
   | TRUE { True }
   | FALSE { False }
   | BLOCKNUM { BlockNum }

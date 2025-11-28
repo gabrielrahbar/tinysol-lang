@@ -125,9 +125,11 @@ let rec eval_expr (st : sysstate) (a : addr) = function
   | EnumOpt(x,o) -> (match lookup_enum_option st a x o with
     | Some n -> Int n
     | None -> failwith "Enum lookup failed (bug in typechecking?)")
-  | EnumCast(_,e) -> (match eval_expr st a e with
-      | Int n -> Int n (* TODO: add dynamic type constraint? *)
-      | _ -> failwith "TODO: EnumCast"
+  | EnumCast(x,e) -> (match eval_expr st a e with
+      | Int n -> (match reverse_lookup_enum_option st a x n with
+        | Some _ -> Int n
+        | None -> raise (TypeError "EnumCast"))
+      | _ -> raise (TypeError "EnumCast: expression is not an Int")
     )
 
 let eval_var_decls (vdl : var_decl list) (e : env): env =
@@ -177,7 +179,7 @@ let blockify_fun = function
 let blockify_contract (Contract(c,el,vdl,fdl)) =
   Contract(c,el,vdl,List.map blockify_fun fdl)
 
-  (******************************************************************************)
+(******************************************************************************)
 (*                       Small-step semantics of commands                     *)
 (******************************************************************************)
 
@@ -393,10 +395,12 @@ let exec_tx (n_steps : int) (tx: transaction) (st : sysstate) : sysstate =
                     stackenv = e' :: st.stackenv;
                     blocknum = 0;
                     active = if deploy then tx.txto :: st.active else st.active } in
-        match exec_cmd n_steps c tx.txto st' with
-          St st'' -> st'' |> popenv
-        | Reverted -> st  (* if the command reverts, the new state is st *)
-        | _ -> failwith "exec_tx: execution of command not terminated (not enough gas?)"
+        try (match exec_cmd n_steps c tx.txto st' with
+          | St st'' -> st'' |> popenv
+          | Reverted -> st  (* if the command reverts, the new state is st *)
+          | _ -> st (* exec_tx: execution of command not terminated (not enough gas?) => revert *)
+        )
+        with _ -> st (* exception thrown during execution of command => revert *)
     ) 
 
 let exec_tx_list (n_steps : int) (txl : transaction list) (st : sysstate) = 

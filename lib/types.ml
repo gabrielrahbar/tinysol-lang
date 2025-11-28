@@ -83,6 +83,20 @@ let lookup_enum_option (st : sysstate) (a : addr) (enum_name : ide) (option_name
     | _ -> assert(false) (* should not happen *)
   with _ -> None
 
+let reverse_lookup_enum_option (st : sysstate) (a : addr) (enum_name : ide) (option_index : int) : ide option = 
+  try 
+    match (st.accounts a).code with
+    | Some(Contract(_,edl,_,_)) -> 
+      edl
+      |> List.filter (fun (Enum(y,_)) -> y=enum_name)
+      |> fun edl -> (match edl with [Enum(_,ol)] -> Some ol | _ -> None)  
+      |> fun l_opt -> (match l_opt with 
+        | None -> None
+        | Some ol -> List.nth_opt ol option_index)
+    | _ -> assert(false) (* should not happen *)
+  with _ -> None
+
+
 let exists_account (st : sysstate) (a : addr) : bool =
   try let _ = st.accounts a in true
   with _ -> false

@@ -349,6 +349,17 @@ let%test "test_enum_1" = test_exec_tx
   ["0xA:0xC.f()"] 
   ["s==State.REQ"]
 
+let%test "test_enum_2" = test_exec_tx
+  "contract C { enum State {IDLE,REQ} State s; function f() public { s = State(1); } }"
+  ["0xA:0xC.f()"] 
+  ["s==State.REQ"]
+
+let%test "test_enum_3" = test_exec_tx
+  "contract C { enum State {IDLE,REQ} State s; function f() public { s = State(2); } }"
+  ["0xA:0xC.f()"] 
+  ["s==State.IDLE"]
+
+
 let test_typecheck (src: string) (exp : bool)=
   let c = src |> parse_contract |> blockify_contract in 
   try typecheck_contract c = exp
