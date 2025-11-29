@@ -35,98 +35,98 @@ let addr_of_exprval v = match v with
   | Int _ -> failwith "value has type Int but an Addr was expected"
   | Map _ -> failwith "value has type Map but an Addr was expected"
 
-let rec eval_expr (st : sysstate) (a : addr) = function
+let rec eval_expr (callee : addr) (st : sysstate) = function
     True -> Bool true
   | False -> Bool false
   | IntConst n -> Int n
   | AddrConst s -> Addr s
-  | This -> Addr a
+  | This -> Addr callee
   | BlockNum -> Int st.blocknum
-  | Var x -> lookup_var a x st
-  | MapR(e1,e2) -> (match eval_expr st a e1 with 
-    | Map m -> m (eval_expr st a e2)
+  | Var x -> lookup_var callee x st
+  | MapR(e1,e2) -> (match eval_expr callee st e1 with 
+    | Map m -> m (eval_expr callee st e2)
     | _ -> failwith "Trying to apply a non-map variable"
     )
   | BalanceOf e ->
-    let b = addr_of_exprval (eval_expr st a e) in
+    let b = addr_of_exprval (eval_expr callee st e) in
     Int (lookup_balance b st)
-  | Not(e) -> (match eval_expr st a e with
+  | Not(e) -> (match eval_expr callee st e with
         Bool b -> Bool(not b)
       | _ -> raise (TypeError "Not")
     )
-  | And(e1,e2) -> (match (eval_expr st a e1,eval_expr st a e2)  with
+  | And(e1,e2) -> (match (eval_expr callee st e1,eval_expr callee st e2)  with
         (Bool b1,Bool b2) -> Bool(b1 && b2)
       | _ -> raise (TypeError "And")
     )
-  | Or(e1,e2) -> (match (eval_expr st a e1,eval_expr st a e2)  with
+  | Or(e1,e2) -> (match (eval_expr callee st e1,eval_expr callee st e2)  with
         (Bool b1,Bool b2) -> Bool(b1 || b2)
       | _ -> raise (TypeError "Or")
     )
-  | Add(e1,e2) -> (match (eval_expr st a e1,eval_expr st a e2)  with
+  | Add(e1,e2) -> (match (eval_expr callee st e1,eval_expr callee st e2)  with
         (Int n1,Int n2) -> Int(n1 + n2)
       | _ -> raise (TypeError "Add")
     )    
-  | Sub(e1,e2) -> (match (eval_expr st a e1,eval_expr st a e2)  with
+  | Sub(e1,e2) -> (match (eval_expr callee st e1,eval_expr callee st e2)  with
         (Int n1,Int n2) -> Int(n1 - n2)
       | _ -> raise (TypeError "Sub")
     )
-  | Mul(e1,e2) -> (match (eval_expr st a e1,eval_expr st a e2)  with
+  | Mul(e1,e2) -> (match (eval_expr callee st e1,eval_expr callee st e2)  with
         (Int n1,Int n2) -> Int(n1 * n2)
       | _ -> raise (TypeError "Add")
     )        
-  | Eq(e1,e2) -> (match (eval_expr st a e1,eval_expr st a e2)  with
+  | Eq(e1,e2) -> (match (eval_expr callee st e1,eval_expr callee st e2)  with
         (Int n1,Int n2) -> Bool(n1 = n2)
       | (Bool b1,Bool b2) -> Bool(b1 = b2)
       | (Addr a1,Addr a2) -> Bool(a1 = a2)
       | _ -> raise (TypeError "Eq")
     )    
-  | Neq(e1,e2) -> (match (eval_expr st a e1,eval_expr st a e2)  with
+  | Neq(e1,e2) -> (match (eval_expr callee st e1,eval_expr callee st e2)  with
         (Int n1,Int n2) -> Bool(n1 <> n2)
       | (Bool b1,Bool b2) -> Bool(b1 <> b2)
       | (Addr a1,Addr a2) -> Bool(a1 <> a2)
       | _ -> raise (TypeError "Eq")
     )    
-  | Leq(e1,e2) -> (match (eval_expr st a e1,eval_expr st a e2)  with
+  | Leq(e1,e2) -> (match (eval_expr callee st e1,eval_expr callee st e2)  with
         (Int n1,Int n2) -> Bool(n1 <= n2)
       | _ -> raise (TypeError "Leq")
     )          
-  | Le(e1,e2) -> (match (eval_expr st a e1,eval_expr st a e2)  with
+  | Le(e1,e2) -> (match (eval_expr callee st e1,eval_expr callee st e2)  with
         (Int n1,Int n2) -> Bool(n1 < n2)
       | _ -> raise (TypeError "Le")
     )          
-  | Geq(e1,e2) -> (match (eval_expr st a e1,eval_expr st a e2)  with
+  | Geq(e1,e2) -> (match (eval_expr callee st e1,eval_expr callee st e2)  with
         (Int n1,Int n2) -> Bool(n1 >= n2)
       | _ -> raise (TypeError "Geq")
     )          
-  | Ge(e1,e2) -> (match (eval_expr st a e1,eval_expr st a e2)  with
+  | Ge(e1,e2) -> (match (eval_expr callee st e1,eval_expr callee st e2)  with
         (Int n1,Int n2) -> Bool(n1 > n2)
       | _ -> raise (TypeError "Ge")
     )
-  | IfE(e1,e2,e3) -> (match (eval_expr st a e1,eval_expr st a e2, eval_expr st a e3)  with
+  | IfE(e1,e2,e3) -> (match (eval_expr callee st e1,eval_expr callee st e2, eval_expr callee st e3)  with
         (Bool b,v2,v3) -> if b then v2 else v3
       | _ -> raise (TypeError "IfE")
     )
-  | IntCast(e) -> (match eval_expr st a e  with
+  | IntCast(e) -> (match eval_expr callee st e  with
       | Int n -> Int n
       | _ -> raise (TypeError "IntCast")
     )          
-  | UintCast(e) -> (match eval_expr st a e  with
+  | UintCast(e) -> (match eval_expr callee st e  with
       | Int n when n>=0-> Int n
       | _ -> raise (TypeError "UintCast")
     )
-  | AddrCast(e) -> (match eval_expr st a e  with
+  | AddrCast(e) -> (match eval_expr callee st e  with
       | Addr a -> Addr a
       | _ -> raise (TypeError "AddrCast")
     )          
-  | PayableCast(e) -> (match eval_expr st a e  with
+  | PayableCast(e) -> (match eval_expr callee st e  with
       | Addr a -> Addr a (* payable cast is only implemented by the type checker *)
       | _ -> raise (TypeError "AddrCast")
     )          
-  | EnumOpt(x,o) -> (match lookup_enum_option st a x o with
+  | EnumOpt(x,o) -> (match lookup_enum_option st callee x o with
     | Some n -> Int n
     | None -> failwith "Enum lookup failed (bug in typechecking?)")
-  | EnumCast(x,e) -> (match eval_expr st a e with
-      | Int n -> (match reverse_lookup_enum_option st a x n with
+  | EnumCast(x,e) -> (match eval_expr callee st e with
+      | Int n -> (match reverse_lookup_enum_option st callee x n with
         | Some _ -> Int n
         | None -> raise (TypeError "EnumCast"))
       | _ -> raise (TypeError "EnumCast: expression is not an Int")
@@ -185,9 +185,46 @@ let blockify_contract (Contract(c,el,vdl,fdl)) =
 (*              Retrieving contracts and functions from state                 *)
 (******************************************************************************)
 
-let find_all _ _ _ = failwith "TODO"
+let find_fun_in_contract (Contract(_,_,_,fdl)) (f : ide) : fun_decl option =
+  List.fold_left 
+  (fun acc fd -> match fd with
+    | Constr(_) -> if acc=None && f="constructor" then Some fd else acc  
+    | Proc(g,_,_,_,_,_) -> if acc=None && f=g then Some fd else acc
+  )
+  None
+  fdl
 
-let get_contract_from_fun _ = failwith "TODO"
+let find_fun_in_sysstate (st : sysstate) (a : addr) (f : ide) = 
+  if not (exists_account st a) then
+    failwith ("address " ^ a ^ " does not exist")
+  else match (st.accounts a).code with
+    | None -> None  (* "address " ^ a ^ " is not a contract address" *)
+    | Some(c) -> find_fun_in_contract c f 
+
+let get_cmd_from_fun = function
+  | (Constr(_,c,_)) -> c
+  | (Proc(_,_,c,_,_,_)) -> c
+
+let get_var_decls_from_fun = function
+  | (Constr(vdl,_,_)) -> vdl
+  | (Proc(_,vdl,_,_,_,_)) -> vdl
+
+let bind_fargs_aargs (xl : var_decl list) (vl : exprval list) : env =
+  if List.length xl <> List.length vl then
+    failwith "exec_tx: length mismatch between formal and actual arguments"
+  else 
+  List.fold_left2 
+  (fun acc x_decl v -> match (x_decl,v) with 
+   | ((VarT(IntBT,_),x), Int _)
+   | ((VarT(BoolBT,_),x), Bool _) 
+   | ((VarT(AddrBT _,_),x), Addr _) -> bind x v acc
+   | ((VarT(UintBT,_),x), Int n) when n>=0 -> bind x v acc
+   | ((MapT(_),_),_) -> failwith "Maps cannot be passed as function parameters"
+   | _ -> failwith "exec_tx: type mismatch between formal and actual arguments") 
+  botenv 
+  xl 
+  vl 
+
 
 (******************************************************************************)
 (*                       Small-step semantics of commands                     *)
@@ -199,21 +236,21 @@ let rec trace1_cmd = function
   | Cmd(c,st,a) -> (match c with
     | Skip -> St st
     | Assign(x,e) -> (
-        St (update_var st a x (eval_expr st a e)))
+        St (update_var st a x (eval_expr a st e)))
     | MapW(x,ek,ev) ->
-        let k = eval_expr st a ek in 
-        St (update_map st a x k (eval_expr st a ev))
+        let k = eval_expr a st ek in 
+        St (update_map st a x k (eval_expr a st ev))
     | Seq(c1,c2) -> (match trace1_cmd (Cmd(c1,st,a)) with
         | St st1 -> Cmd(c2,st1,a)
         | Reverted -> Reverted
         | Cmd(c1',st1,a) -> Cmd(Seq(c1',c2),st1,a))
-    | If(e,c1,c2) -> (match eval_expr st a e with
+    | If(e,c1,c2) -> (match eval_expr a st e with
           Bool true -> Cmd(c1,st,a)
         | Bool false -> Cmd(c2,st,a)
         | _ -> failwith("if: type error"))
     | Send(ercv,eamt) -> 
-        let rcv = addr_of_exprval (eval_expr st a ercv) in 
-        let amt = int_of_exprval (eval_expr st a eamt) in
+        let rcv = addr_of_exprval (eval_expr a st ercv) in 
+        let amt = int_of_exprval (eval_expr a st eamt) in
         let bal = (st.accounts a).balance in
         if bal<amt then failwith "insufficient balance" else
         let sender_state =  { (st.accounts a) with balance = (st.accounts a).balance - amt } in
@@ -224,7 +261,7 @@ let rec trace1_cmd = function
           let rcv_state = { balance = amt; storage = botenv; code = None; } in
           St { st with accounts = st.accounts |> bind rcv rcv_state |> bind a sender_state; active = rcv::st.active }
     | Req(e) -> 
-        if eval_expr st a e = Bool true then St st 
+        if eval_expr a st e = Bool true then St st 
         else Reverted 
     | Return(_) -> failwith "TODO"
     | Block(vdl,c) ->
@@ -235,41 +272,35 @@ let rec trace1_cmd = function
         | Reverted -> Reverted
         | Cmd(c1',st1,a') -> Cmd(ExecBlock(c1'),st1,a'))
     | Decl _ -> assert(false) (* should not happen after blockify *)
-    | ProcCall(e_to,f,e_value,_) ->
+    | ProcCall(e_to,f,e_value,e_args) ->
         (* retrieve function declaration *)
-        let call_to = eval_expr st a e_to in
-        let call_value = int_of_exprval (eval_expr st a e_value) in
-        if lookup_balance a st < call_value then 
+        let txto   = addr_of_exprval (eval_expr a st e_to) in
+        let txvalue  = int_of_exprval (eval_expr a st e_value) in
+        let txargs = List.map (fun arg -> eval_expr a st arg) e_args in
+        if lookup_balance a st < txvalue then 
           failwith ("sender " ^ a ^ " has not sufficient wei balance")
         else
-        let fdecl = find_all call_to f st in  
+        let sender_state = 
+          { (st.accounts a) with balance = (st.accounts a).balance - txvalue } in
+        let to_state  = 
+          { (st.accounts txto) with balance = (st.accounts txto).balance + txvalue } in 
+        let fdecl = Option.get (find_fun_in_sysstate st txto f) in  
         (* setup new stack frame TODO *)
-        let e' = botenv in
-        let c = get_contract_from_fun fdecl in
-        Cmd(ExecBlock(c), { st with stackenv = e'::st.stackenv} , a)
+        let xl = get_var_decls_from_fun fdecl in
+        let xl',vl' =
+          (VarT(AddrBT false,false),"msg.sender") :: (VarT(IntBT,false),"msg.value") :: xl,
+          Addr a :: Int txvalue :: txargs
+        in
+        let e' = bind_fargs_aargs xl' vl' in
+        let st' = { accounts = st.accounts 
+                      |> bind a sender_state
+                      |> bind txto to_state; 
+                    stackenv = e' :: st.stackenv;
+                    blocknum = 0;
+                    active = st.active } in
+        let c = get_cmd_from_fun fdecl in
+        Cmd(ExecBlock(c), st', txto)
   )
-
-(* (match (topenv st f,eval_expr st e) with
-          (IProc(a,c),Int n) ->
-          let l = getloc st in
-          let env' = bind (topenv st) x (IVar l) in
-          let mem' = bind (getmem st) l n in
-          let st' = (env'::(getenv st), mem', l+1) in
-          Cmd(CallExec(c),st')
-        | _ -> raise (TypeError "Call of a non-procedure"))
-*)
-(*                    
-    | CallExec(c) -> (match trace1_cmd (Cmd(c,st,a)) with
-          St st' -> St (popenv st', getmem st', getloc st',a)
-        | Cmd(c',st') -> Cmd(CallExec(c'),st',a))
-*)
-
-(*
-let sem_decl (e,l) = function
-  | IntVar(x) ->  let e' = bind e x (IVar l) in (e',l+1)
-  | Constr(f,a,c) -> let e' = bind e f (IProc(a,c)) in (e',l)                                                
-  | Proc(f,a,c) -> let e' = bind e f (IProc(a,c)) in (e',l)
-*)
 
 let default_value = function 
   IntBT  
@@ -329,31 +360,6 @@ let faucet (a : addr) (n : int) (st : sysstate) : sysstate =
 (* Executes steps of a transaction in a system state, returning a trace       *)
 (******************************************************************************)
 
-let find_fun (Contract(_,_,_,fdl)) (f : ide) : fun_decl option =
-  List.fold_left 
-  (fun acc fd -> match fd with
-    | Constr(_) -> if acc=None && f="constructor" then Some fd else acc  
-    | Proc(g,_,_,_,_,_) -> if acc=None && f=g then Some fd else acc
-  )
-  None
-  fdl
-
-let bind_fargs_aargs (xl : var_decl list) (vl : exprval list) : env =
-  if List.length xl <> List.length vl then
-    failwith "exec_tx: length mismatch between formal and actual arguments"
-  else 
-  List.fold_left2 
-  (fun acc x_decl v -> match (x_decl,v) with 
-   | ((VarT(IntBT,_),x), Int _)
-   | ((VarT(BoolBT,_),x), Bool _) 
-   | ((VarT(AddrBT _,_),x), Addr _) -> bind x v acc
-   | ((VarT(UintBT,_),x), Int n) when n>=0 -> bind x v acc
-   | ((MapT(_),_),_) -> failwith "Maps cannot be passed as function parameters"
-   | _ -> failwith "exec_tx: type mismatch between formal and actual arguments") 
-  botenv 
-  xl 
-  vl
-
 let exec_tx (n_steps : int) (tx: transaction) (st : sysstate) : sysstate =
   if tx.txvalue < 0 then
     failwith ("exec_tx: trying to send a negative amount of tokens")
@@ -368,6 +374,7 @@ let exec_tx (n_steps : int) (tx: transaction) (st : sysstate) : sysstate =
   else 
   let (sender_state : account_state) = 
     { (st.accounts tx.txsender) with balance = (st.accounts tx.txsender).balance - tx.txvalue } in
+  (* sets state of to address. If not created yet, deploys the contract *)
   let (to_state : account_state),(deploy : bool) = 
     if exists_account st tx.txto 
     then    { (st.accounts tx.txto) with balance = (st.accounts tx.txto).balance + tx.txvalue }, 
@@ -381,7 +388,7 @@ let exec_tx (n_steps : int) (tx: transaction) (st : sysstate) : sysstate =
       | _ -> failwith "exec_tx: the first parameter of a deploy transaction must be the contract code") in
   match to_state.code with
   | None -> failwith "Called address is not a contract"
-  | Some src -> (match find_fun src tx.txfun with
+  | Some src -> (match find_fun_in_contract src tx.txfun with
     | None when (not deploy) -> failwith ("Contract at address " ^ tx.txto ^ " has no function named " ^ tx.txfun)
     | None -> (* deploy a contract with no constructor (non-payable) *)
       if tx.txvalue > 0 then 

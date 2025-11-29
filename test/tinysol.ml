@@ -213,10 +213,9 @@ let%test "test_trace_cmd_19" = test_trace_cmd
 
 (********************************************************************************
  test_exec_tx : 
- - c: the contract that will be deployed for testing,
+ - src: the contract that will be deployed for testing,
  - txl: a list of transactions that will be executed
- - vars: a list of state variables of contract c that will be inspected
- - exp_vals: a list of expected values for the variables vars)
+ - els: a list of assertions expected to be true
  ********************************************************************************)
 
 let test_exec_tx (src: string) (txl: string list) (els : string list) =
@@ -226,7 +225,7 @@ let test_exec_tx (src: string) (txl: string list) (els : string list) =
   |> faucet "0xB" 100
   |> deploy_contract { txsender="0xA"; txto="0xC"; txfun="constructor"; txargs=[]; txvalue=0; } src 
   |> exec_tx_list 1000 txl 
-  |> fun st -> List.map (fun x -> x |> parse_expr |> eval_expr st "0xC") els 
+  |> fun st -> List.map (fun x -> x |> parse_expr |> eval_expr "0xC" st) els 
   |> List.for_all (fun v -> v = Bool true)
 
 let c1 = "contract C {
@@ -411,6 +410,60 @@ let%test "test_block_2" = test_exec_tx
   ["0xA:0xC.f(1)"] 
   ["x==100 && y==200 && z==5"]
 
+
+(********************************************************************************
+ test_exec_fun : 
+ - src1, src2: the contracts that will be deployed for testing,
+ - txl: a list of transactions that will be executed
+ - els: a list of (contract,assertions) expected to be true
+ ********************************************************************************)
+
+let test_exec_fun (src1: string) (src2: string) (txl : string list) (els : (addr * string) list) =
+  let txl = List.map parse_transaction txl in
+  init_sysstate
+  |> faucet "0xA" 200
+  |> faucet "0xB" 100
+  |> deploy_contract { txsender="0xA"; txto="0xC"; txfun="constructor"; txargs=[]; txvalue=0; } src1 
+  |> deploy_contract { txsender="0xA"; txto="0xD"; txfun="constructor"; txargs=[]; txvalue=100; } src2 
+  |> exec_tx_list 1000 txl 
+  |> fun st -> List.map (fun (a,x) -> x |> parse_expr |> eval_expr a st) els 
+  |> List.for_all (fun v -> v = Bool true)
+
+let%test "test_fun_1" = test_exec_fun
+  "contract C { uint x; function f() public { x+=1;} }"
+  "contract D { C c; uint x; constructor() payable { c = \"0xC\"; } function g() public { c.f(); } }"
+  ["0xA:0xD.g()"] 
+  [("0xC","x==1"); ("0xD","x==0")]
+
+let%test "test_fun_2" = test_exec_fun
+  "contract C { uint x; function f() public { x+=1;} }"
+  "contract D { C c; uint x; constructor() payable { c = \"0xC\"; } function g() public { c.f(); } }"
+  ["0xA:0xD.g()"; "0xA:0xD.g()"] 
+  [("0xC","x==2"); ("0xD","x==0")]
+
+let%test "test_fun_3" = test_exec_fun
+  "contract C { uint x; function f() public { x+=1; require(x==0); } }"
+  "contract D { C c; uint x; constructor() payable { c = \"0xC\"; } function g() public { x=2; c.f(); } }"
+  ["0xA:0xD.g()"] 
+  [("0xC","x==0"); ("0xD","x==0")]
+
+let%test "test_fun_4" = test_exec_fun
+  "contract C { uint x; function f(uint n) public { x+=n; } }"
+  "contract D { C c; constructor() payable { c = \"0xC\"; } function g() public { c.f(1); } }"
+  ["0xA:0xD.g()"] 
+  [("0xC","x==1")]
+
+let%test "test_fun_5" = test_exec_fun
+  "contract C { uint x; function f(uint n) public { x+=n; } }"
+  "contract D { C c; constructor() payable { c = \"0xC\"; } function g() public { c.f(1); } }"
+  ["0xA:0xD.g()"; "0xA:0xD.g()"] 
+  [("0xC","x==2")]
+
+let%test "test_fun_6" = test_exec_fun
+  "contract C { function f() public payable { require(msg.value > 0); } }"
+  "contract D { C c; constructor() payable { c = \"0xC\"; } function g() public { c.f{value:1}(); } }"
+  ["0xA:0xD.g()"; "0xA:0xD.g()"] 
+  [("0xC","this.balance==2"); ("0xD","this.balance==98")]
 
 let test_typecheck (src: string) (exp : bool)=
   let c = src |> parse_contract |> blockify_contract in 
