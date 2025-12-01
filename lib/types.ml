@@ -20,12 +20,6 @@ type sysstate = {
   active: addr list; (* set of all active addresses (for debugging)*)
 }
 
-(* execution state of an expression *)
-type exec_expr =  
-  | ValSt of exprval * sysstate     (* togliere!!! *)
-  | ExprSt of expr * sysstate * addr
-  | ExprRev (* reverted *)
-
 (* execution state of a command *)
 type exec_state = 
   | St of sysstate 
@@ -63,14 +57,18 @@ let lookup_env (x : ide) (el : env list) : exprval option =
   None
   el
 
-let lookup_var (a : addr) (x : ide) (st : sysstate) : exprval =
+let lookup_var (_ : addr) (x : ide) (st : sysstate) : exprval =
   (* look up for x in environment stack *)
   match lookup_env x st.stackenv with
   | Some v -> v 
   | None -> 
-    (* look up for x in storage of a *)
-    let cs = st.accounts a in
-    cs.storage x
+    (* retrieve the address of the currently executed contract *)
+    match lookup_env "this" st.stackenv with
+    | Some (Addr a) -> 
+      (* look up for x in storage of a *)
+      let cs = st.accounts a in
+      cs.storage x
+    | _ -> failwith "this not bound or not bound to an address"
 
 let lookup_balance (a : addr) (st : sysstate) : int =
   try (st.accounts a).balance
@@ -119,18 +117,22 @@ let rec update_env (el : env list) (x:ide) (v:exprval) : env list =
       (bind x v e) :: el'
     with _ -> e :: (update_env el' x v)
 
-let update_var (st : sysstate) (a:addr) (x:ide) (v:exprval) : sysstate = 
+let update_var (st : sysstate) (_:addr) (x:ide) (v:exprval) : sysstate = 
   (* first tries to update environment if x is bound there *)
    try 
     let el' = update_env st.stackenv x v in
     { st with stackenv = el' }
   with _ -> 
-  (* if not, tries to update storage of a *)
-    let cs = st.accounts a in
-    if exists_ide_in_storage cs x then 
-      let cs' = { cs with storage = bind x v cs.storage } in 
-      { st with accounts = bind a cs' st.accounts }
-    else failwith (x ^ " not bound in storage of " ^ a)   
+    (* if not, tries to update storage of a *)
+    (* first, retrieve the address of the currently executed contract *)
+    match lookup_env "this" st.stackenv with
+    | Some (Addr a) -> 
+      let cs = st.accounts a in
+      if exists_ide_in_storage cs x then 
+        let cs' = { cs with storage = bind x v cs.storage } in 
+        { st with accounts = bind a cs' st.accounts }
+      else failwith (x ^ " not bound in storage of " ^ a)   
+    | _ -> failwith "this not bound or not bound to an address"
 
 
 let update_map (st : sysstate) (a:addr) (x:ide) (k:exprval) (v:exprval) : sysstate = 

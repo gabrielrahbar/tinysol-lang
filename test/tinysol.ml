@@ -225,7 +225,7 @@ let test_exec_tx (src: string) (txl: string list) (els : string list) =
   |> faucet "0xB" 100
   |> deploy_contract { txsender="0xA"; txto="0xC"; txfun="constructor"; txargs=[]; txvalue=0; } src 
   |> exec_tx_list 1000 txl 
-  |> fun st -> List.map (fun x -> x |> parse_expr |> eval_expr "0xC" st) els 
+  |> fun st -> List.map (fun x -> x |> parse_expr |> eval_expr "0xC" { st with stackenv = [bind "this" (Addr "0xC") botenv]}) els 
   |> List.for_all (fun v -> v = Bool true)
 
 let c1 = "contract C {
@@ -435,7 +435,7 @@ let test_exec_fun (src1: string) (src2: string) (txl : string list) (els : (addr
   |> deploy_contract { txsender="0xA"; txto="0xC"; txfun="constructor"; txargs=[]; txvalue=0; } src1 
   |> deploy_contract { txsender="0xA"; txto="0xD"; txfun="constructor"; txargs=[]; txvalue=100; } src2 
   |> exec_tx_list 1000 txl 
-  |> fun st -> List.map (fun (a,x) -> x |> parse_expr |> eval_expr a st) els 
+  |> fun st -> List.map (fun (a,x) -> x |> parse_expr |> eval_expr a { st with stackenv = [bind "this" (Addr a) botenv]}) els 
   |> List.for_all (fun v -> v = Bool true)
 
 let%test "test_proc_1" = test_exec_fun
@@ -493,10 +493,16 @@ let%test "test_fun_2" = test_exec_fun
   [("0xD","x==10")]
 
 let%test "test_fun_3" = test_exec_fun
-  "contract C { uint y; function f() public returns(int) { y+=1; return(y+1);} }"
+  "contract C { uint y; function f() public returns(int) { y=5; return(1);} }"
   "contract D { C c; uint x; constructor() payable { c = \"0xC\"; } function g() public { x = c.f(); } }"
   ["0xA:0xD.g()"] 
-  [("0xC","y==1"); ("0xD","x==2")]
+  [("0xC","y==5"); ("0xD","x==1")]
+
+let%test "test_fun_3" = test_exec_fun
+  "contract C { uint y; function f() public returns(int) { y=123; return(y+1);} }"
+  "contract D { C c; uint x; constructor() payable { c = \"0xC\"; } function g() public { x = c.f(); } }"
+  ["0xA:0xD.g()"] 
+  [("0xC","y==123"); ("0xD","x==124")]
 
 let test_typecheck (src: string) (exp : bool)=
   let c = src |> parse_contract |> blockify_contract in 

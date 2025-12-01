@@ -155,11 +155,14 @@ let addr_of_exprval v = match v with
 let rec step_expr (e,st,a) = match e with
   | e when is_val e -> raise NoRuleApplies
 
-  | This -> (AddrConst a, st, a)
+  | This -> (expr0_of_exprval (Option.get (lookup_env "this" st.stackenv)), st, a)
 
   | BlockNum -> (IntConst st.blocknum, st, a)
 
-  | Var x -> (expr0_of_exprval (lookup_var a x st), st, a)  
+  | Var x -> let _ = print_string ("***** Var " ^ x ^ " in " ^ string_of_envstack st.stackenv ["this"]) in 
+    let s = string_of_expr (expr0_of_exprval (lookup_var a x st)) in
+    let _ = print_endline (" ---> " ^ s) in
+    (expr0_of_exprval (lookup_var a x st), st, a)  
 
   | MapR(Var x,e2) when is_val e2 -> (match lookup_var a x st with
     | Map m -> (expr0_of_exprval (m (eval_expr0 e2)), st, a)
@@ -327,14 +330,13 @@ let rec step_expr (e,st,a) = match e with
     (* setup new stack frame TODO *)
     let xl = get_var_decls_from_fun fdecl in
     let xl',vl' =
-      (VarT(AddrBT false,false),"msg.sender") :: (VarT(IntBT,false),"msg.value") :: xl,
-      Addr a :: Int txvalue :: txargs
+      (VarT(AddrBT false,true),"this") :: (VarT(AddrBT false,false),"msg.sender") :: (VarT(IntBT,false),"msg.value") :: xl,
+      Addr txto :: Addr a :: Int txvalue :: txargs
     in
-    let e' = bind_fargs_aargs xl' vl' in
     let st' = { accounts = st.accounts 
                   |> bind a sender_state
                   |> bind txto to_state; 
-                stackenv = e' :: st.stackenv;
+                stackenv = bind_fargs_aargs xl' vl' :: st.stackenv;
                 blocknum = st.blocknum;
                 active = st.active } in
     let c = get_cmd_from_fun fdecl in
@@ -387,9 +389,14 @@ and step_cmd = function
 
     | Skip -> St st
 
-    | Assign(x,e) when is_val e ->
-        let _ = print_endline("Assign 1: " ^ a ^ "." ^ x ^ " = " ^ string_of_expr e) in
-        St (update_var st a x (eval_expr0 e))
+    | Assign(x,e) when is_val e -> (
+        let _ = print_string("Assign 1: " ^ a ^ "." ^ x ^ " = " ^ string_of_expr e ^ " at ") in
+        try (
+          let s = string_of_expr (expr0_of_exprval (Option.get (lookup_env "this" st.stackenv))) in
+          let _ = print_endline("this = " ^ s) in 
+          St (update_var st a x (eval_expr0 e)))
+        with _ -> St (update_var st a x (eval_expr0 e))
+    )
     | Assign(x,e) -> 
       let _ = print_endline("Assign 2: " ^ a ^ "." ^ x ^ " = " ^ string_of_expr e) in
       let (e', st', _) = step_expr (e, st, a) in 
@@ -475,15 +482,14 @@ and step_cmd = function
         (* setup new stack frame TODO *)
         let xl = get_var_decls_from_fun fdecl in
         let xl',vl' =
-          (VarT(AddrBT false,false),"msg.sender") :: (VarT(IntBT,false),"msg.value") :: xl,
-          Addr a :: Int txvalue :: txargs
+          (VarT(AddrBT false,true),"this") :: (VarT(AddrBT false,false),"msg.sender") :: (VarT(IntBT,false),"msg.value") :: xl,
+          Addr txto :: Addr a :: Int txvalue :: txargs
         in
-        let e' = bind_fargs_aargs xl' vl' in
         let st' = { accounts = st.accounts 
                       |> bind a sender_state
                       |> bind txto to_state; 
-                    stackenv = e' :: st.stackenv;
-                    blocknum = 0;
+                    stackenv = bind_fargs_aargs xl' vl' :: st.stackenv;
+                    blocknum = st.blocknum;
                     active = st.active } in
         let c = get_cmd_from_fun fdecl in
         Cmd(ExecBlock(c), st', txto)
@@ -613,18 +619,17 @@ let exec_tx (n_steps : int) (tx: transaction) (st : sysstate) : sysstate =
         let xl',vl' =
           if deploy then match tx.txargs with 
             _::al -> 
-            (VarT(AddrBT false,false),"msg.sender") :: xl,
-            Addr (tx.txsender) :: al
+            (VarT(AddrBT false,true),"this") :: (VarT(AddrBT false,false),"msg.sender") :: xl,
+            Addr tx.txto :: Addr tx.txsender :: al (* TODO: why null value?? *)
             | _ -> assert(false) (* should not happen *)
           else
-            (VarT(AddrBT false,false),"msg.sender") :: (VarT(IntBT,false),"msg.value") :: xl,
-            Addr tx.txsender :: Int tx.txvalue :: tx.txargs
+            (VarT(AddrBT false,true),"this") :: (VarT(AddrBT false,false),"msg.sender") :: (VarT(IntBT,false),"msg.value") :: xl,
+            Addr tx.txto :: Addr tx.txsender :: Int tx.txvalue :: tx.txargs
         in
-        let e' = bind_fargs_aargs xl' vl' in
         let st' = { accounts = st.accounts 
                       |> bind tx.txsender sender_state
                       |> bind tx.txto to_state; 
-                    stackenv = e' :: st.stackenv;
+                    stackenv = bind_fargs_aargs xl' vl' :: st.stackenv;
                     blocknum = 0;
                     active = if deploy then tx.txto :: st.active else st.active } in
         try (match exec_cmd n_steps c tx.txto st' with
