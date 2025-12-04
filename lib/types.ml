@@ -148,7 +148,11 @@ let exists_ide_in_storage (cs : account_state) (x : ide) : bool =
   try let _ = cs.storage x in true
   with _ -> false
 
-let rec update_env (el : env list) (x:ide) (v:exprval) : env list =
+(* 
+  Updates the variable x to value x in environment stack el. 
+  The variable is searched throughout the environment frames in the stack. 
+ *)
+let rec update_env (el : env list) (x : ide) (v : exprval) : env list =
  match el with
   | [] -> failwith (x ^ " not bound in env")
   | e::el' -> 
@@ -156,7 +160,11 @@ let rec update_env (el : env list) (x:ide) (v:exprval) : env list =
       (bind x v e) :: el'
     with _ -> e :: (update_env el' x v)
 
-let update_var (st : sysstate) (x:ide) (v:exprval) : sysstate = 
+(* 
+  Updates the variable x to value x in state st. 
+  The variable is first searched in the topmost environment, and then in the contract storage. 
+ *)
+let update_var (st : sysstate) (x : ide) (v : exprval) : sysstate = 
   (* first tries to update environment if x is bound there *)
    try 
     let el' = update_env st.stackenv x v in
