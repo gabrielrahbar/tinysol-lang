@@ -140,7 +140,7 @@ let rec step_expr (e,st) = match e with
 
   | Sub(e1,e2) when is_val e1 && is_val e2 ->
     let (n1,n2) = int_of_expr e1,int_of_expr e2 in 
-    (IntConst (n1+n2), st)         
+    (IntConst (n1-n2), st)         
   | Sub(e1,e2) when is_val e1 ->
     let (e2', st') = step_expr (e2, st) in (Sub(e1,e2'), st')
   | Sub(e1,e2) -> 

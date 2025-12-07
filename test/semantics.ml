@@ -491,3 +491,25 @@ let%test "test_fun_13" = test_exec_fun
   }"
   ["0xA:0xD.g()"] 
   [("0xC","x==7"); ("0xD","y==1")]
+
+let%test "test_fun_14" = test_exec_fun
+  "contract C { D d; uint x; constructor() payable { d = \"0xD\"; x=5; } 
+      function f() public { x=d.h(); } 
+  }"
+  "contract D { C c; uint y; constructor() payable { c = \"0xC\"; } 
+      function g() public { { int x; x=1; c.f(); y=x; } }
+      function h() public returns(uint) { return this.k()+1; }
+      function k() public returns(uint) { return 6; }
+  }"
+  ["0xA:0xD.g()"] 
+  [("0xC","x==7"); ("0xD","y==1")]
+
+let%test "test_fun_15" = test_exec_fun
+  "contract C { 
+      function fact(int n) public { return (n==0) ? 1 : (n * this.fact(n-1)); } 
+  }"
+  "contract D { C c; uint y; constructor() payable { c = \"0xC\"; } 
+      function g(int x) public { y = c.fact(x); }
+  }"
+  ["0xA:0xD.g(4)"] 
+  [("0xD","y==24")]
