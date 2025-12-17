@@ -86,7 +86,8 @@ assert 0xA this.balance==80
 assert 0xB this.balance==70
 assert 0xC this.balance==50
 
-revert 0xA:0xC.withdraw(21)
+0xA:0xC.withdraw(21)
+assert lastReverted
 
 0xA:0xC.withdraw(15)
 assert 0xA this.balance==95
@@ -111,10 +112,9 @@ accounts: [0xC -> { balance=0; credits=<map>; } 0xB -> { balance=100; } 0xA -> {
 accounts: [0xC -> { balance=20; credits=<map>; } 0xB -> { balance=100; } 0xA -> { balance=80; } ]
 --- 0xB:0xC.deposit{value: 30}() --->
 accounts: [0xC -> { balance=50; credits=<map>; } 0xB -> { balance=70; } 0xA -> { balance=80; } ]
---- revert 0xA:0xC.withdraw{value: 0}(21) --->
+--- 0xA:0xC.withdraw{value: 0}(21) --->
+Failure("require condition is false")
 accounts: [0xC -> { balance=50; credits=<map>; } 0xB -> { balance=70; } 0xA -> { balance=80; } ]
 --- 0xA:0xC.withdraw{value: 0}(15) --->
 accounts: [0xC -> { balance=35; credits=<map>; } 0xB -> { balance=70; } 0xA -> { balance=95; } ]
---- 0xB:0xC.withdraw{value: 0}(30) --->
-accounts: [0xC -> { balance=5; credits=<map>; } 0xB -> { balance=100; } 0xA -> { balance=95; } ]
 ```
