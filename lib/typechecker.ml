@@ -515,6 +515,7 @@ let typecheck_contract (Contract(_,edl,vdl,fdl)) : typecheck_result =
   (* no multiply declared state variables *)
   no_dup_var_decls vdl
   >>
+  (* no external state variables *)
   check_state_var_visibility vdl
   >>
   (* no multiply declared functions *)
