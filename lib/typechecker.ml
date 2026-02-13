@@ -236,7 +236,12 @@ let rec typecheck_expr (f : ide) (m : fun_mutability_t) (fdl : fun_decl list) (e
       (try 
         match lookup_type x vdl m f with
         | Some t -> Ok(t)
-        | None -> Error [UndeclaredVar (f,x)]
+        | None -> (* Controllo specifico per Pure *)
+            (* Se sono in Pure e la variabile esiste nello stato, do l'errore giusto *)
+            if m = Pure && is_state_var x vdl then 
+                Error [MutabilityError(f, x, "pure")]
+            else 
+                Error [UndeclaredVar (f,x)]
        with 
        | MutabilityError(fn, v, mut) -> Error [MutabilityError(fn, v, mut)]
        | PayableRequired(fn, v) -> Error [PayableRequired(fn, v)]
