@@ -711,3 +711,33 @@ let%test "f5_msg_value_non_payable_fail" = test_typecheck
       }
    }"
   false
+
+(* Test Call Graph: VIEW non deve chiamare funzioni che modificano lo stato *)
+let%test "view_calls_state_modifying_fail" = test_typecheck
+  "contract Caller { 
+     function bad() public { } 
+     function f() public view { 
+       this.bad();
+     } 
+   }"
+  false
+
+(* Test Call Graph: PURE non deve chiamare VIEW *)
+let%test "pure_calls_view_fail" = test_typecheck
+  "contract Caller { 
+     function bad() public view { } 
+     function f() public pure { 
+       this.bad();
+     } 
+   }"
+  false
+
+(* Test Call Graph: VIEW può chiamare PURE *)
+let%test "view_calls_pure_ok" = test_typecheck
+  "contract Caller { 
+     function good() public pure { } 
+     function f() public view { 
+       this.good();
+     } 
+   }"
+  true
