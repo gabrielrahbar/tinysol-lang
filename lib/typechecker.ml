@@ -75,6 +75,7 @@ exception EnumOptionNotFound of ide * ide * ide
 exception EnumDupName of ide
 exception EnumDupOption of ide * ide
 exception MapInLocalDecl of ide * ide
+exception ReceiveHasParameters of ide
 
 let logfun f s = "(" ^ f ^ ")\t" ^ s 
 
@@ -95,6 +96,7 @@ let string_of_typecheck_error = function
 | EnumDupName x -> "enum " ^ x ^ " is declared multiple times"
 | EnumDupOption (x,o) -> "enum option " ^ o ^ " is declared multiple times in enum " ^ x
 | MapInLocalDecl (f,x) -> logfun f "mapping " ^ x ^ " not admitted in local declaration" 
+| ReceiveHasParameters f -> logfun f "the receive function cannot have parameters"
 | ex -> Printexc.to_string ex
 
 let exprtype_of_decltype = function
@@ -472,6 +474,13 @@ let typecheck_fun (edl : enum_decl list) (vdl : var_decl list) = function
       >> 
       typecheck_cmd "constructor" edl (merge_var_decls vdl al) c
   | Proc (f,al,c,_,__,_) ->
+      if f = "receive" then
+          (* receive function can't have arguments*)
+        (match al with
+        | [] -> typecheck_cmd f edl (merge_var_decls vdl al) c
+        | _-> Error [ReceiveHasParameters f]
+        )
+      else
       no_dup_local_var_decls f al
       >> 
       typecheck_local_decls f al
