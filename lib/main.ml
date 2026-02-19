@@ -346,19 +346,25 @@ and step_cmd = function
         let (e', st') = step_expr (e, st) in
         CmdSt(If(e',c1,c2), st')
 
-    | Send(ercv,eamt) when is_val ercv && is_val eamt -> 
-        let rcv = addr_of_expr ercv in 
+    | Send(ercv,eamt) when is_val ercv && is_val eamt ->
+        let rcv = addr_of_expr ercv in
         let amt = int_of_expr eamt in
-        let from = (List.hd st.callstack).callee in 
+        let from = (List.hd st.callstack).callee in
         let from_bal = (st.accounts from).balance in
         if from_bal<amt then Reverted "insufficient balance" else
-        let from_state =  { (st.accounts from) with balance = from_bal - amt } in
-        if exists_account st rcv then
-          let rcv_state = { (st.accounts rcv) with balance = (st.accounts rcv).balance + amt } in
-           St { st with accounts = st.accounts |> bind rcv rcv_state |> bind from from_state}
+        let is_contract = exists_account st rcv && (st.accounts rcv).code <> None in
+        if is_contract then
+          (match find_fun_in_sysstate st rcv "receive" with
+          | Some _ -> CmdSt(ProcCall(ercv, "receive", eamt, []), st)
+          | None -> Reverted "contract has no receive function")
         else
-          let rcv_state = { balance = amt; storage = botenv; code = None; } in
-          St { st with accounts = st.accounts |> bind rcv rcv_state |> bind from from_state; active = rcv::st.active }
+          let from_state = { (st.accounts from) with balance = from_bal - amt } in
+          if exists_account st rcv then
+            let rcv_state = { (st.accounts rcv) with balance = (st.accounts rcv).balance + amt } in
+            St { st with accounts = st.accounts |> bind rcv rcv_state |> bind from from_state }
+          else
+            let rcv_state = { balance = amt; storage = botenv; code = None; } in
+            St { st with accounts = st.accounts |> bind rcv rcv_state |> bind from from_state; active = rcv::st.active }
 
     | Send(ercv,eamt) when is_val ercv -> 
         let (eamt', st') = step_expr (eamt, st) in

@@ -82,6 +82,7 @@ exception InvalidStateVarVisibility of ide
 exception MutabilityError of ide * ide * ide
 exception PayableRequired of ide * ide
 exception ConstructorMutabilityError of ide
+exception ReceiveHasParameters of ide
 
 let logfun f s = "(" ^ f ^ ")\t" ^ s 
 
@@ -108,6 +109,7 @@ let string_of_typecheck_error = function
 | MutabilityError (f, op, m) -> logfun f "function declared as " ^ m ^ ", but " ^ op ^ " violates this modifier"
 | PayableRequired (f, v) -> logfun f "access to " ^ v ^ " requires payable function"
 | ConstructorMutabilityError m -> "constructor cannot be declared as " ^ m
+| ReceiveHasParameters f -> logfun f "the receive function cannot have parameters"
 | ex -> Printexc.to_string ex
 
 let exprtype_of_decltype = function
@@ -562,6 +564,13 @@ let typecheck_fun (edl : enum_decl list) (vdl : var_decl list) (fdl : fun_decl l
       >> 
       typecheck_cmd "constructor" m fdl edl (merge_var_decls vdl al) c
   | Proc (f,al,c,_,m,_) ->
+      if f = "receive" then
+          (* receive function can't have arguments*)
+        (match al with
+        | [] -> typecheck_cmd f m fdl edl (merge_var_decls vdl al) c
+        | _-> Error [ReceiveHasParameters f]
+        )
+      else
       no_dup_local_var_decls f al
       >> 
       typecheck_local_decls f al
