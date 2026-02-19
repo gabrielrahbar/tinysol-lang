@@ -67,6 +67,8 @@ let typeckeck_result_from_expr_result (out : typecheck_expr_result) : typecheck_
 exception TypeError of ide * expr * exprtype * exprtype
 exception NotMapError of ide * expr
 exception ImmutabilityError of ide * ide
+exception ConstantAssignError of ide * ide
+exception ConstantNotInitialized of ide
 exception UndeclaredVar of ide * ide
 exception MultipleDecl of ide
 exception MultipleLocalDecl of ide * ide
@@ -87,6 +89,8 @@ let string_of_typecheck_error = function
     " but is expected to have type " ^ string_of_exprtype t2
 | NotMapError (f,e) -> logfun f (string_of_expr e) ^ " is not a mapping"
 | ImmutabilityError (f,x) -> logfun f "variable " ^ x ^ " was declared as immutable, but is used as mutable"
+| ConstantAssignError (f,x) -> logfun f "variable " ^ x ^ " was declared as constant and cannot be assigned"
+| ConstantNotInitialized x -> "constant variable " ^ x ^ " must be initialized at declaration"
 | UndeclaredVar (f,x) -> logfun f "variable " ^ x ^ " is not declared"
 | MultipleDecl x -> "variable " ^ x ^ " is declared multiple times"
 | MultipleLocalDecl (f,x) -> logfun f "variable " ^ x ^ " is declared multiple times"
@@ -382,8 +386,11 @@ let rec typecheck_expr (f : ide) (edl : enum_decl list) vdl = function
 
   | ExecFunCall(_) -> assert(false) (* this should not happen at static time *)
 
-let is_immutable (x : ide) (vdl : var_decl list) = 
-  List.fold_left (fun acc (vd : var_decl) -> acc || (vd.name=x && vd.mutability<>Mutable)) false vdl
+let is_constant (x : ide) (vdl : var_decl list) =
+  List.fold_left (fun acc (vd : var_decl) -> acc || (vd.name=x && vd.mutability=Constant)) false vdl
+
+let is_immutable (x : ide) (vdl : var_decl list) =
+  List.fold_left (fun acc (vd : var_decl) -> acc || (vd.name=x && vd.mutability=Immutable)) false vdl
 
 let typecheck_local_decls (f : ide) (vdl : local_var_decl list) = List.fold_left
   (fun acc vd -> match vd.ty with 
@@ -395,9 +402,11 @@ let typecheck_local_decls (f : ide) (vdl : local_var_decl list) = List.fold_left
 let rec typecheck_cmd (f : ide) (edl : enum_decl list) (vdl : all_var_decls) = function 
     | Skip -> Ok ()
 
-    | Assign(x,e) -> 
+    | Assign(x,e) ->
+        (* constant variables cannot be assigned anywhere *)
+        if is_constant x (get_state_var_decls vdl) then Error [ConstantAssignError (f,x)]
         (* the immutable modifier is not checked for the constructor *)
-        if f <> "constructor" && is_immutable x (get_state_var_decls vdl) then Error [ImmutabilityError (f,x)]
+        else if f <> "constructor" && is_immutable x (get_state_var_decls vdl) then Error [ImmutabilityError (f,x)]
         else (
           match typecheck_expr f edl vdl e,typecheck_expr f edl vdl (Var x) with
           | Ok(te),Ok(tx) -> if subtype te tx then Ok() else Error [TypeError (f,e,te,tx)]
@@ -500,17 +509,27 @@ let typecheck_enums (edl : enum_decl list) =
     - Error log otherwise, where log explains the reasons of the failed checks     
  *)
 
+let constants_initialized (vdl : var_decl list) : typecheck_result =
+  List.fold_left (fun acc (vd : var_decl) ->
+    if vd.mutability = Constant && vd.init_value = None
+    then acc >> Error [ConstantNotInitialized vd.name]
+    else acc)
+  (Ok ()) vdl
+
 let typecheck_contract (Contract(_,edl,vdl,fdl)) : typecheck_result =
   (* no multiply declared enums *)
-  typecheck_enums edl 
+  typecheck_enums edl
   >>
   (* no multiply declared state variables *)
   no_dup_var_decls vdl
   >>
+  (* constants must be initialized at declaration *)
+  constants_initialized vdl
+  >>
   (* no multiply declared functions *)
   no_dup_fun_decls fdl
   >>
-  List.fold_left (fun acc fd -> acc >> typecheck_fun edl vdl fd) (Ok ()) fdl  
+  List.fold_left (fun acc fd -> acc >> typecheck_fun edl vdl fd) (Ok ()) fdl
 
 
 let string_of_typecheck_result = function
