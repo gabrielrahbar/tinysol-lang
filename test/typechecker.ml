@@ -585,4 +585,167 @@ let%test "test_typecheck_enum_5" = test_typecheck
 let%test "test_typecheck_enum_6" = test_typecheck
   "contract C { enum E1 {A1,B1} enum E2 {A2,B2} enum E1 {A1,B1} E1 s; function f() public { s = E1.A1; } }"
   false
+(* Test aggiuntivi per modifiers *)
 
+(* VIEW: Deve poter LEGGERE lo stato *)
+let%test "view_read_ok" = test_typecheck
+  "contract Reader { 
+     uint stateVar; 
+     function read() public view { 
+       uint temp; 
+       temp = stateVar;
+     } 
+   }"
+  true
+
+(* VIEW: NON deve poter SCRIVERE lo stato *)
+let%test "view_write_fail" = test_typecheck
+  "contract Writer { 
+     uint stateVar; 
+     function write() public view { 
+       stateVar = 20; 
+     } 
+   }"
+  false
+
+(* PURE: NON deve poter LEGGERE lo stato *)
+let%test "pure_read_state_fail" = test_typecheck
+  "contract PureFail { 
+     uint stateVar; 
+     function calc() public pure { 
+       uint temp; 
+       temp = stateVar; 
+     } 
+   }"
+  false
+
+(* PURE: Funziona con variabili locali *)
+let%test "pure_local_ok" = test_typecheck
+  "contract PureCalc { 
+     function add(uint a, uint b) public pure { 
+       uint res; 
+       res = a + b; 
+     } 
+   }"
+  true
+
+(* PURE & SHADOWING: Variabile locale maschera quella globale *)
+let%test "pure_shadowing_ok" = test_typecheck
+  "contract Shadow { 
+     uint x; 
+     function f() public pure { 
+       uint x; 
+       x = 10; 
+     } 
+   }"
+  true
+
+(* PAYABLE: Può usare msg.value *)
+let%test "payable_ok" = test_typecheck
+  "contract Bank { 
+     uint bal; 
+     function deposit() public payable { 
+       uint amount;
+       amount = msg.value;
+       bal = bal + amount; 
+     } 
+   }"
+  true
+
+(* NON-PAYABLE: Non può usare msg.value *)
+let%test "nonpayable_fail" = test_typecheck
+  "contract Greedy { 
+     function payMe() public { 
+       uint val; 
+       val = msg.value; 
+     } 
+   }"
+  false
+
+(* Stessi Test della consegna del issue *)
+(* Typecheck should fail: f1 cannot be declared as view because it (potentially) modifies the state. *)
+let%test "f1_view_modifies_state_fail" = test_typecheck
+  "contract C {
+      uint x;
+      function f1() public view { 
+        x = 1; 
+      }
+   }"
+  false
+
+(* Typecheck should succeed. (Default mutability allows modification) *)
+let%test "f2_default_modifies_state_ok" = test_typecheck
+  "contract C {
+      uint x;
+      function f2() public { 
+        x = 1; 
+      }
+   }"
+  true
+
+(* Typecheck should fail: f3 cannot be declared as pure because it (potentially) depends on the state. *)
+let%test "f3_pure_depends_on_state_fail" = test_typecheck
+  "contract C {
+      uint x;
+      function f3(uint y) public pure { 
+        uint z; 
+        z = x * y; 
+      }
+   }"
+  false
+
+(* Typecheck should succeed. (Pure with local math only) *)
+let%test "f4_pure_local_math_ok" = test_typecheck
+  "contract C {
+      uint x;
+      function f4(uint y) public pure { 
+        uint z; 
+        z = y * y; 
+      }
+   }"
+  true
+
+(* Typecheck should fail: msg.value can only be used in payable functions, while f5 is non-payable. *)
+let%test "f5_msg_value_non_payable_fail" = test_typecheck
+  "contract C {
+      int x;
+      constructor() { 
+        x = 1; 
+      }
+      function f5() public { 
+        uint temp;
+        temp = msg.value;
+        x = 2;
+      }
+   }"
+  false
+
+(* Test Call Graph: VIEW non deve chiamare funzioni che modificano lo stato *)
+let%test "view_calls_state_modifying_fail" = test_typecheck
+  "contract Caller { 
+     function bad() public { } 
+     function f() public view { 
+       this.bad();
+     } 
+   }"
+  false
+
+(* Test Call Graph: PURE non deve chiamare VIEW *)
+let%test "pure_calls_view_fail" = test_typecheck
+  "contract Caller { 
+     function bad() public view { } 
+     function f() public pure { 
+       this.bad();
+     } 
+   }"
+  false
+
+(* Test Call Graph: VIEW può chiamare PURE *)
+let%test "view_calls_pure_ok" = test_typecheck
+  "contract Caller { 
+     function good() public pure { } 
+     function f() public view { 
+       this.good();
+     } 
+   }"
+  true
