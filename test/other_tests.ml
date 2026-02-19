@@ -267,7 +267,71 @@ let%test "test_typecheck_constant_3" = test_typecheck
 let%test "test_typecheck_constant_4" = test_typecheck
   "contract C {
     int constant N;
-    constructor() { } 
+    constructor() { }
+    function f(int n) external { }
+  }"
+  false
+
+(* bool constant used correctly *)
+let%test "test_typecheck_constant_bool_ok" = test_typecheck
+  "contract C {
+    bool constant B=true;
+    constructor() { }
+    function f(int n) external { }
+  }"
+  true
+
+(* bool constant not initialized *)
+let%test "test_typecheck_constant_bool_not_init" = test_typecheck
+  "contract C {
+    bool constant B;
+    constructor() { }
+    function f(int n) external { }
+  }"
+  false
+
+(* bool constant assigned in constructor *)
+let%test "test_typecheck_constant_bool_constructor" = test_typecheck
+  "contract C {
+    bool constant B=true;
+    constructor() { B=false; }
+    function f(int n) external { }
+  }"
+  false
+
+(* bool constant assigned in function *)
+let%test "test_typecheck_constant_bool_function" = test_typecheck
+  "contract C {
+    bool constant B=true;
+    constructor() { }
+    function f(int n) external { B=false; }
+  }"
+  false
+
+(* constant assigned with expression in constructor *)
+let%test "test_typecheck_constant_expr_constructor" = test_typecheck
+  "contract C {
+    int constant N=1;
+    constructor() { N=2+3; }
+    function f(int n) external { }
+  }"
+  false
+
+(* constant assigned with expression in function *)
+let%test "test_typecheck_constant_expr_function" = test_typecheck
+  "contract C {
+    int constant N=1;
+    constructor() { }
+    function f(int n) external { N=2+3; }
+  }"
+  false
+
+(* constant assigned in conditional branch *)
+let%test "test_typecheck_constant_if" = test_typecheck
+  "contract C {
+    int constant N=1;
+    int x = 0;
+    constructor() { if(true) N=2; else x=2; }
     function f(int n) external { }
   }"
   false
