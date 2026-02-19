@@ -75,6 +75,7 @@ exception EnumOptionNotFound of ide * ide * ide
 exception EnumDupName of ide
 exception EnumDupOption of ide * ide
 exception MapInLocalDecl of ide * ide
+exception InvalidStateVarVisibility of ide
 (* Nuove eccezioni per i modificatori di mutabilità *)
 exception MutabilityError of ide * ide * ide
 exception PayableRequired of ide * ide
@@ -99,7 +100,7 @@ let string_of_typecheck_error = function
 | EnumDupName x -> "enum " ^ x ^ " is declared multiple times"
 | EnumDupOption (x,o) -> "enum option " ^ o ^ " is declared multiple times in enum " ^ x
 | MapInLocalDecl (f,x) -> logfun f "mapping " ^ x ^ " not admitted in local declaration" 
-(* Nuovi messaggi di errore *)
+| InvalidStateVarVisibility x -> "state variable " ^ x ^ " cannot be declared external"
 | MutabilityError (f, op, m) -> logfun f "function declared as " ^ m ^ ", but " ^ op ^ " violates this modifier"
 | PayableRequired (f, v) -> logfun f "access to " ^ v ^ " requires payable function"
 | ConstructorMutabilityError m -> "constructor cannot be declared as " ^ m
@@ -535,6 +536,12 @@ let rec typecheck_cmd (f : ide) (m : fun_mutability_t) (fdl : fun_decl list) (ed
 
     | Return(_) -> failwith "TODO: Return"
 
+let check_state_var_visibility (vdl: var_decl list) : typecheck_result =
+  List.fold_left (fun acc (vd : var_decl) ->
+    match vd.visibility with
+    | External -> acc >> Error [InvalidStateVarVisibility vd.name]
+    | _ -> acc
+  ) (Ok ()) vdl
 
 let typecheck_fun (edl : enum_decl list) (vdl : var_decl list) (fdl : fun_decl list) = function
   | Constr (al,c,m) ->
@@ -580,6 +587,9 @@ let typecheck_contract (Contract(_,edl,vdl,fdl)) : typecheck_result =
   >>
   (* no multiply declared state variables *)
   no_dup_var_decls vdl
+  >>
+  (* no external state variables *)
+  check_state_var_visibility vdl
   >>
   (* no multiply declared functions *)
   no_dup_fun_decls fdl
